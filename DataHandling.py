@@ -1,0 +1,239 @@
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+import xgboost as xgb
+from sklearn.linear_model import LinearRegression
+from sklearn import metrics
+from sklearn.metrics import r2_score, accuracy_score
+from sklearn.preprocessing import StandardScaler
+from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
+from sklearn.ensemble import RandomForestRegressor
+
+pd.set_option('display.max_columns', None)
+
+gw_url = "https://raw.githubusercontent.com/olbauday/FPL-Core-Insights/refs/heads/main/data/2025-2026/gameweek_summaries.csv"
+players_url = "https://raw.githubusercontent.com/olbauday/FPL-Core-Insights/refs/heads/main/data/2025-2026/players.csv"
+player_stats_url = "https://raw.githubusercontent.com/olbauday/FPL-Core-Insights/refs/heads/main/data/2025-2026/playerstats.csv"
+team_url = "https://raw.githubusercontent.com/olbauday/FPL-Core-Insights/refs/heads/main/data/2025-2026/teams.csv"
+
+attributes = ['id', 'event_points', 'target_next_points', 'bps_per_90', 'form',
+              'ict_index', 'gw', 'goals_scored', 'assists', 'rolling_minutes', 'rolling_expected_assists',
+              'rolling_clean_sheets', 'rolling_goals_conceded', 'rolling_total_points',
+              'defensive_contribution_per_90', 'team_elo', 'opponent_elo', 'rolling_expected_goals']
+
+attributes_attackers = ['id', 'event_points','bps_per_90', 'form', 'expected_goals', 'expected_assists',
+                        'ict_index', 'gw', 'goals_scored', 'assists', 'team_elo', 'opponent_elo', 'rolling_minutes',
+                        'defensive_contribution_per_90', 'target_next_points', 'rolling_total_points',
+                        'rolling_expected_assists', 'rolling_expected_goals']
+
+attributes_keepers = ['id', 'event_points','bps_per_90', 'form', 'rolling_minutes', 'rolling_saves',
+                      'team_elo', 'opponent_elo', 'ict_index','gw', 'rolling_total_points',
+                      'clean_sheets_per_90', 'goals_conceded_per_90', 'penalties_saved',
+                      'saves_per_90', 'target_next_points', 'rolling_goals_conceded', 'rolling_clean_sheets']
+
+def get_dataset():
+    gw_df = pd.read_csv(gw_url)
+    players_df = pd.read_csv(players_url)
+    player_stats_df = pd.read_csv(player_stats_url)
+    team_df = pd.read_csv(team_url)
+
+    #print(player_stats_df.info())
+    #print(players_df.info())
+    #print(team_df.info())
+
+    #add player position and team
+    merged_df = player_stats_df.merge(
+        players_df[['player_id', 'position', 'team_code']],
+        left_on='id',
+        right_on='player_id',
+        how='left'
+    )
+
+    #Get team and opponent ELOs
+    elo_dfs = []
+
+    for gw in merged_df['gw'].unique():
+        gw_fixtures = f"https://raw.githubusercontent.com/olbauday/FPL-Core-Insights/refs/heads/main/data/2025-2026/By%20Tournament/Premier%20League/GW{gw}/fixtures.csv"
+        fixtures_df = pd.read_csv(gw_fixtures)
+        fixtures_df['gw'] = gw
+
+        # Home team perspective
+        home_df = fixtures_df[[
+            'gw',
+            'home_team',
+            'home_team_elo',
+            'away_team_elo'
+        ]].copy()
+
+        home_df.rename(columns={
+            'home_team': 'team_code',
+            'home_team_elo': 'team_elo',
+            'away_team_elo': 'opponent_elo'
+        }, inplace=True)
+
+        # Away team perspective
+        away_df = fixtures_df[[
+            'gw',
+            'away_team',
+            'away_team_elo',
+            'home_team_elo'
+        ]].copy()
+
+        away_df.rename(columns={
+            'away_team': 'team_code',
+            'away_team_elo': 'team_elo',
+            'home_team_elo': 'opponent_elo'
+        }, inplace=True)
+
+        fixture_elo_df = pd.concat([home_df, away_df], ignore_index=True)
+
+        elo_dfs.append(fixture_elo_df)
+
+    elo_df = pd.concat(elo_dfs, ignore_index=True)
+
+    # Aggregate double gameweeks
+    elo_df = elo_df.groupby(
+        ['gw', 'team_code'],
+        as_index=False
+    ).agg(
+        team_elo=('team_elo', 'mean'),
+        opponent_elo=('opponent_elo', 'mean'),
+        fixture_count=('opponent_elo', 'size')
+    )
+
+    merged_df = merged_df.merge(elo_df, on=['gw','team_code'], how='left')
+
+    merged_df['bps_per_90'] = np.where(
+        merged_df['minutes'] > 0,
+        round(merged_df['bps'] / (merged_df['minutes']/90), 2),
+        0
+    )
+
+    merged_df.dropna(subset=['team_elo'], inplace=True)
+
+    return merged_df
+
+def get_rolling_attributes(current_gw):
+    if current_gw < 1 or current_gw > 38:
+        raise ValueError('GW must be between 1 and 38')
+    features = ['id', 'minutes', 'total_points', 'goals_conceded', 'clean_sheets', 'saves', 'expected_goals', 'expected_assists', ]
+    rolling_features = []
+    for i in range(1, current_gw + 1):
+        gw_info = f'https://raw.githubusercontent.com/olbauday/FPL-Core-Insights/refs/heads/main/data/2025-2026/By%20Tournament/Premier%20League/GW{i}/player_gameweek_stats.csv'
+        stats_df = pd.read_csv(gw_info)
+        stats_df = stats_df[features].copy()
+        stats_df['gw'] = i
+        rolling_features.append(stats_df)
+
+    gw_features = pd.concat(rolling_features, ignore_index=True)
+    gw_features = gw_features.sort_values(['id', 'gw'])
+
+    rolling_features = ['minutes', 'total_points', 'goals_conceded', 'clean_sheets', 'saves', 'expected_goals', 'expected_assists']
+
+    for col in rolling_features:
+        gw_features[f'rolling_{col}'] = (
+            gw_features.groupby('id')[col]
+            .shift(1)
+            .rolling(window=5, min_periods=1)
+            .mean()
+            .reset_index(level=0, drop=True)
+        )
+
+    rolling_feature_cols = [
+        'id',
+        'gw'
+    ] + [f'rolling_{col}' for col in rolling_features]
+
+    return gw_features[rolling_feature_cols]
+
+
+
+def linear_regression(data):
+    data = data[data['gw'] > 1]
+    train_df = data[data['gw'] <= 30]
+    test_df = data[data['gw'] > 30]
+
+    scaler = StandardScaler()
+
+    X_train = train_df.drop(columns=['gw', 'event_points', 'target_next_points'])
+    y_train = train_df['target_next_points']
+
+    X_test = test_df.drop(columns=['gw', 'event_points', 'target_next_points'])
+    y_test = test_df['target_next_points']
+
+    X_train_scaled = scaler.fit_transform(X_train)
+    X_test_scaled = scaler.fit_transform(X_test)
+
+    lm = LinearRegression()
+    lm.fit(X_train_scaled, y_train)
+
+    predictions = lm.predict(X_test_scaled)
+    print("MAE:", metrics.mean_absolute_error(y_test, predictions))
+    print('MSE:', metrics.mean_squared_error(y_test, predictions))
+    print('RMSE:', np.sqrt(metrics.mean_squared_error(y_test, predictions)))
+
+    print('R2 Score: ', r2_score(y_test, predictions))
+
+def decision_tree(data):
+    data = data[data['gw'] > 1]
+    train_df = data[data['gw'] <= 30]
+    test_df = data[data['gw'] > 30]
+
+    X_train = train_df.drop(columns=['gw', 'event_points', 'target_next_points'])
+    y_train = train_df['target_next_points']
+
+    X_test = test_df.drop(columns=['gw', 'event_points', 'target_next_points'])
+    y_test = test_df['target_next_points']
+
+    clf_gini = DecisionTreeRegressor(criterion='squared_error', max_depth=5, random_state=0)
+    clf_gini.fit(X_train, y_train)
+    y_pred = clf_gini.predict(X_test)
+
+    print('MAE:', metrics.mean_absolute_error(y_test, y_pred))
+    print('RMSE:', np.sqrt(metrics.mean_squared_error(y_test, y_pred)))
+    print('R2 Score: ', r2_score(y_test, y_pred))
+
+def random_forest(data):
+    data = data[data['gw'] > 1]
+    train_df = data[data['gw'] <= 30]
+    test_df = data[data['gw'] > 30]
+
+    X_train = train_df.drop(columns=['gw', 'event_points', 'target_next_points'])
+    y_train = train_df['target_next_points']
+
+    X_test = test_df.drop(columns=['gw', 'event_points', 'target_next_points'])
+    y_test = test_df['target_next_points']
+
+    rfc = RandomForestRegressor(n_estimators=500, max_depth=4, random_state=0, n_jobs=-1)
+    rfc.fit(X_train, y_train)
+
+    rfc_pred = rfc.predict(X_test)
+    print('MAE:', metrics.mean_absolute_error(y_test, rfc_pred))
+    print('MSE:', metrics.mean_squared_error(y_test, rfc_pred))
+    print('RMSE:', np.sqrt(metrics.mean_squared_error(y_test, rfc_pred)))
+    print('R2 Score: ', r2_score(y_test, rfc_pred))
+
+def xgboost(data):
+    data = data[data['gw'] > 1]
+    train_df = data[data['gw'] <= 30]
+    test_df = data[data['gw'] > 30]
+
+    X_train = train_df.drop(columns=['gw', 'event_points', 'target_next_points'])
+    y_train = train_df['target_next_points']
+
+    X_test = test_df.drop(columns=['gw', 'event_points', 'target_next_points'])
+    y_test = test_df['target_next_points']
+
+    model = xgb.XGBRegressor(n_estimators=1000, max_depth=6, learning_rate=0.01, random_state=0)
+    model.fit(X_train, y_train)
+
+    predictions = model.predict(X_test)
+    print('MAE:', metrics.mean_absolute_error(y_test, predictions))
+    print('MSE:', metrics.mean_squared_error(y_test, predictions))
+    print('RMSE:', np.sqrt(metrics.mean_squared_error(y_test, predictions)))
+    print('R2 Score: ', r2_score(y_test, predictions))
+
+
+
+
