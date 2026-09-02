@@ -1,6 +1,7 @@
 import DataHandling as dh
+import CreateVisualData as create
 
-CURRENT_GW = 38
+CURRENT_GW = 3
 
 # gets unfiltered dataset  
 merged_df = dh.get_dataset()
@@ -16,6 +17,9 @@ merged_df['target_next_points'] = (
 rolling_features = dh.get_rolling_attributes(CURRENT_GW)
 merged_df = merged_df.merge(rolling_features, on=['id', 'gw'], how='left')
 
+# drop players with less than minutes played threshold 
+merged_df = merged_df[merged_df['minutes'] >= (CURRENT_GW - 1) * 45] # 45 minutes per gameweek
+
 # drop rows with missing target_next_points values
 merged_df.dropna(subset=['target_next_points'], inplace=True)
 
@@ -23,7 +27,8 @@ merged_df.dropna(subset=['target_next_points'], inplace=True)
 null_columns = ['clean_sheets_per_90', 'goals_conceded_per_90', 'saves_per_90', 'defensive_contribution_per_90']
 merged_df[null_columns] = merged_df[null_columns].fillna(0)
 
-print(*list(merged_df.columns), sep='\n')
+#print(*list(merged_df.columns), sep='\n')
+#print(merged_df.info())
 
 # seperate the dataset by position
 keepers_df = merged_df.loc[merged_df['position'] == 'Goalkeeper', dh.attributes_keepers]
@@ -31,6 +36,9 @@ defenders_df = merged_df.loc[merged_df['position'] == 'Defender', dh.attributes_
 midfield_df = merged_df.loc[merged_df['position'] == 'Midfielder', dh.attributes_def_mid]
 forward_df = merged_df.loc[merged_df['position'] == 'Forward', dh.attributes_outfield] 
 
+create.expected_goals_assists_plot(forward_df)   
+create.expected_goals_assists_plot(midfield_df)
+create.expected_goals_assists_plot(defenders_df)
 
 # TESTING PREDICTION MODELS
 """print('Keeper Predictions changing: \n')

@@ -14,15 +14,17 @@ pd.set_option('display.max_columns', None)
 
 # URLs
 
-gw_url = "https://raw.githubusercontent.com/olbauday/FPL-Core-Insights/refs/heads/main/data/2025-2026/gameweek_summaries.csv"
-players_url = "https://raw.githubusercontent.com/olbauday/FPL-Core-Insights/refs/heads/main/data/2025-2026/players.csv"
-player_stats_url = "https://raw.githubusercontent.com/olbauday/FPL-Core-Insights/refs/heads/main/data/2025-2026/playerstats.csv"
-team_url = "https://raw.githubusercontent.com/olbauday/FPL-Core-Insights/refs/heads/main/data/2025-2026/teams.csv"
+
+gw_url = "https://raw.githubusercontent.com/olbauday/FPL-Core-Insights/refs/heads/main/data/2026-2027/gameweek_summaries.csv"
+players_url = "https://raw.githubusercontent.com/olbauday/FPL-Core-Insights/refs/heads/main/data/2026-2027/players.csv"
+player_stats_url = "https://raw.githubusercontent.com/olbauday/FPL-Core-Insights/refs/heads/main/data/2026-2027/playerstats.csv"
+team_url = "https://raw.githubusercontent.com/olbauday/FPL-Core-Insights/refs/heads/main/data/2026-2027/teams.csv"
 
 #ATTRIBUTE MASKS
 
 attributes = [
     'id', 
+    'web_name',
     'event_points', 
     'target_next_points', 
     'bps_per_90', 
@@ -77,9 +79,9 @@ def get_dataset():
     player_stats_df = pd.read_csv(player_stats_url)
     team_df = pd.read_csv(team_url)
 
-    #print(player_stats_df.info())
-    #print(players_df.info())
-    #print(team_df.info())
+    print(player_stats_df.info())
+    print(players_df.info())
+    print(team_df.info())
 
     #add player position and team
     merged_df = player_stats_df.merge(
@@ -93,7 +95,7 @@ def get_dataset():
     elo_dfs = []
 
     for gw in merged_df['gw'].unique():
-        gw_fixtures = f"https://raw.githubusercontent.com/olbauday/FPL-Core-Insights/refs/heads/main/data/2025-2026/By%20Tournament/Premier%20League/GW{gw}/fixtures.csv"
+        gw_fixtures = f"https://raw.githubusercontent.com/olbauday/FPL-Core-Insights/refs/heads/main/data/2026-2027/By%20Tournament/Premier%20League/GW{gw}/fixtures.csv"
         fixtures_df = pd.read_csv(gw_fixtures)
         fixtures_df['gw'] = gw
 
