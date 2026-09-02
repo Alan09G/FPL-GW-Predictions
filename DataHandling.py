@@ -12,25 +12,64 @@ from sklearn.ensemble import RandomForestRegressor
 
 pd.set_option('display.max_columns', None)
 
+# URLs
+
 gw_url = "https://raw.githubusercontent.com/olbauday/FPL-Core-Insights/refs/heads/main/data/2025-2026/gameweek_summaries.csv"
 players_url = "https://raw.githubusercontent.com/olbauday/FPL-Core-Insights/refs/heads/main/data/2025-2026/players.csv"
 player_stats_url = "https://raw.githubusercontent.com/olbauday/FPL-Core-Insights/refs/heads/main/data/2025-2026/playerstats.csv"
 team_url = "https://raw.githubusercontent.com/olbauday/FPL-Core-Insights/refs/heads/main/data/2025-2026/teams.csv"
 
-attributes = ['id', 'event_points', 'target_next_points', 'bps_per_90', 'form',
-              'ict_index', 'gw', 'goals_scored', 'assists', 'rolling_minutes', 'rolling_expected_assists',
-              'rolling_clean_sheets', 'rolling_goals_conceded', 'rolling_total_points',
-              'defensive_contribution_per_90', 'team_elo', 'opponent_elo', 'rolling_expected_goals']
+#ATTRIBUTE MASKS
 
-attributes_attackers = ['id', 'event_points','bps_per_90', 'form', 'expected_goals', 'expected_assists',
-                        'ict_index', 'gw', 'goals_scored', 'assists', 'team_elo', 'opponent_elo', 'rolling_minutes',
-                        'defensive_contribution_per_90', 'target_next_points', 'rolling_total_points',
-                        'rolling_expected_assists', 'rolling_expected_goals']
+attributes = [
+    'id', 
+    'event_points', 
+    'target_next_points', 
+    'bps_per_90', 
+    'form',
+    'now_cost',
+    'points_per_game',
+    'ict_index', 
+    'gw',
+    'minutes', 
+    'rolling_minutes', 
+    'rolling_total_points',
+    'team_elo', 
+    'opponent_elo', 
+    'selected_by_percent'
+]
 
-attributes_keepers = ['id', 'event_points','bps_per_90', 'form', 'rolling_minutes', 'rolling_saves',
-                      'team_elo', 'opponent_elo', 'ict_index','gw', 'rolling_total_points',
-                      'clean_sheets_per_90', 'goals_conceded_per_90', 'penalties_saved',
-                      'saves_per_90', 'target_next_points', 'rolling_goals_conceded', 'rolling_clean_sheets']
+attributes_outfield = attributes + [
+    'goals_scored',
+    'assists',
+    'expected_goals',
+    'expected_assists',
+    'expected_goal_involvements',
+    'defensive_contribution_per_90',
+    'rolling_expected_goals',
+    'rolling_expected_assists'
+]
+
+attributes_def_mid = attributes_outfield + [
+    'clean_sheets_per_90',
+    'goals_conceded_per_90',
+    'expected_goals_conceded',
+    'rolling_clean_sheets',
+    'rolling_goals_conceded',
+]
+
+attributes_keepers = attributes + [
+    'rolling_saves',
+    'rolling_clean_sheets',
+    'rolling_goals_conceded',
+    'clean_sheets_per_90', 
+    'goals_conceded_per_90', 
+    'penalties_saved',
+    'saves_per_90'
+]
+
+
+# PLAYER DATA  
 
 def get_dataset():
     gw_df = pd.read_csv(gw_url)
@@ -147,7 +186,7 @@ def get_rolling_attributes(current_gw):
 
     return gw_features[rolling_feature_cols]
 
-
+# PREDICTION MODELS
 
 def linear_regression(data):
     data = data[data['gw'] > 1]
