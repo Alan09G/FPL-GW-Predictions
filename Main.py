@@ -24,7 +24,7 @@ defenders_df = merged_df.loc[merged_df['position'] == 'Defender', dh.attributes]
 midfield_df = merged_df.loc[merged_df['position'] == 'Midfielder', dh.attributes]
 forward_df = merged_df.loc[merged_df['position'] == 'Forward', dh.attributes_attackers]
 
-print('Keeper Predictions: \n')
+print('Keeper Predictions changing: \n')
 print('Random Forest: \n', dh.random_forest(keepers_df))
 print('XGBoost: \n', dh.xgboost(keepers_df))
 
