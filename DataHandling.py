@@ -73,6 +73,16 @@ attributes_keepers = attributes + [
     'saves_per_90'
 ]
 
+attributes_teams = [
+    "home_team_name",
+    "away_team_name",
+    "home_team_elo",
+    "away_team_elo",
+    "finished",
+    "home_expected_goals_xg",
+    "away_expected_goals_xg",
+    "gameweek"
+]
 
 # PLAYER DATA  
 
@@ -82,9 +92,9 @@ def get_player_dataset():
     player_stats_df = pd.read_csv(player_stats_url)
     team_df = pd.read_csv(team_url)
 
-    print(player_stats_df.info())
-    print(players_df.info())
-    print(team_df.info())
+    #print(player_stats_df.info())
+    #print(players_df.info())
+    #print(team_df.info())
 
     #add player position and team
     merged_df = player_stats_df.merge(
@@ -193,8 +203,33 @@ def get_rolling_attributes():
 
 # TEAM DATA
 
-def get_team_dataset():
-    pass
+def get_team_dataset(match_df: pd.DataFrame) -> pd.DataFrame:
+    # create masks  
+    home_team = ["home_team_name", "home_team_elo", "gameweek", "finished", "home_expected_goals_xg"]
+    away_team = ["away_team_name", "away_team_elo", "gameweek", "finished", "away_expected_goals_xg"]
+
+    #split the match dataset into home and away team dataframes, then rename columns to match
+    # and concatenate them into a single team dataframe
+    home_df = match_df[home_team].copy()
+    home_df.rename(columns={
+        "home_team_name": "team_name",
+        "home_team_elo": "team_elo",
+        "home_expected_goals_xg": "expected_goals"
+    }, inplace=True)
+
+    away_df = match_df[away_team].copy()
+    away_df.rename(columns={
+        "away_team_name": "team_name",
+        "away_team_elo": "team_elo",
+        "away_expected_goals_xg": "expected_goals"
+    }, inplace=True)
+
+    team_df = pd.concat([home_df, away_df], ignore_index=True)
+    
+    #Account for double gameweeks   
+    team_df = team_df.groupby(['team_name', 'team_elo', 'gameweek'], as_index=False).mean()
+
+    return team_df
 
 # GET MATCH DATA
 
@@ -202,11 +237,15 @@ def get_match_dataset():
     match_df = []
 
     for gw in range(1, current_gw + 1):
-        match_info = f"https://raw.githubusercontent.com/olbauday/FPL-Core-Insights/refs/heads/main/data/2026-2027/By%20Tournament/Premier%20League/GW{current_gw}/matches.csv"
+        match_info = f"https://raw.githubusercontent.com/olbauday/FPL-Core-Insights/refs/heads/main/data/2026-2027/By%20Tournament/Premier%20League/GW{gw}/matches.csv"
+        team_info = f"https://raw.githubusercontent.com/olbauday/FPL-Core-Insights/refs/heads/main/data/2026-2027/By%20Tournament/Premier%20League/GW{gw}/teams.csv"
         gw_match_df = pd.read_csv(match_info)
-        match_df.append(gw_match_df)
+        gw_team_df = pd.read_csv(team_info)[['code', 'name']]
 
-    #TODO: ADD TEAM NAMES
+        # add team names   
+        gw_match_df['home_team_name'] = gw_match_df['home_team'].map(gw_team_df.set_index('code')['name'])
+        gw_match_df['away_team_name'] = gw_match_df['away_team'].map(gw_team_df.set_index('code')['name'])
+        match_df.append(gw_match_df)
 
     return pd.concat(match_df, ignore_index=True)
 

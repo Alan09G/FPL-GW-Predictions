@@ -35,14 +35,17 @@ defenders_df = player_df.loc[player_df['position'] == 'Defender', dh.attributes_
 midfield_df = player_df.loc[player_df['position'] == 'Midfielder', dh.attributes_def_mid]
 forward_df = player_df.loc[player_df['position'] == 'Forward', dh.attributes_outfield] 
 
-create.expected_goals_assists_plot(forward_df)   
-create.expected_goals_assists_plot(midfield_df)
-create.expected_goals_assists_plot(defenders_df)
+#create.expected_goals_assists_plot(forward_df)   
+#create.expected_goals_assists_plot(midfield_df)
+#create.expected_goals_assists_plot(defenders_df)
 
-#GET MATCH DATASET
+#GET MATCH AND TEAM DATASET
 
-team_df = dh.get_team_dataset()
-
+match_df = dh.get_match_dataset()
+match_df = match_df[dh.attributes_teams]
+team_df = dh.get_team_dataset(match_df)
+create.xg_xa_team_plot(team_df)
+    
 
 # TESTING PREDICTION MODELS
 """print('Keeper Predictions changing: \n')
