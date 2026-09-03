@@ -14,11 +14,14 @@ pd.set_option('display.max_columns', None)
 
 # URLs
 
-
 gw_url = "https://raw.githubusercontent.com/olbauday/FPL-Core-Insights/refs/heads/main/data/2026-2027/gameweek_summaries.csv"
 players_url = "https://raw.githubusercontent.com/olbauday/FPL-Core-Insights/refs/heads/main/data/2026-2027/players.csv"
 player_stats_url = "https://raw.githubusercontent.com/olbauday/FPL-Core-Insights/refs/heads/main/data/2026-2027/playerstats.csv"
 team_url = "https://raw.githubusercontent.com/olbauday/FPL-Core-Insights/refs/heads/main/data/2026-2027/teams.csv"
+
+# get current gameweek
+gw_df = pd.read_csv(gw_url)
+current_gw = gw_df.loc[gw_df['is_current'] == True, 'id'].values[0]
 
 #ATTRIBUTE MASKS
 
@@ -73,7 +76,7 @@ attributes_keepers = attributes + [
 
 # PLAYER DATA  
 
-def get_dataset():
+def get_player_dataset():
     gw_df = pd.read_csv(gw_url)
     players_df = pd.read_csv(players_url)
     player_stats_df = pd.read_csv(player_stats_url)
@@ -155,7 +158,7 @@ def get_dataset():
 
     return merged_df
 
-def get_rolling_attributes(current_gw):
+def get_rolling_attributes():
     if current_gw < 1 or current_gw > 38:
         raise ValueError('GW must be between 1 and 38')
     features = ['id', 'minutes', 'total_points', 'goals_conceded', 'clean_sheets', 'saves', 'expected_goals', 'expected_assists', ]
@@ -187,6 +190,25 @@ def get_rolling_attributes(current_gw):
     ] + [f'rolling_{col}' for col in rolling_features]
 
     return gw_features[rolling_feature_cols]
+
+# TEAM DATA
+
+def get_team_dataset():
+    pass
+
+# GET MATCH DATA
+
+def get_match_dataset():
+    match_df = []
+
+    for gw in range(1, current_gw + 1):
+        match_info = f"https://raw.githubusercontent.com/olbauday/FPL-Core-Insights/refs/heads/main/data/2026-2027/By%20Tournament/Premier%20League/GW{current_gw}/matches.csv"
+        gw_match_df = pd.read_csv(match_info)
+        match_df.append(gw_match_df)
+
+    #TODO: ADD TEAM NAMES
+
+    return pd.concat(match_df, ignore_index=True)
 
 # PREDICTION MODELS
 
