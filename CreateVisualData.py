@@ -51,3 +51,13 @@ def xg_xa_team_plot(df):
         plt.text(row['expected_goals'], row['expected_assists'], row['name'], fontsize=9, ha='right')
     
     plt.show()
+
+def show_elo_rankings(team_df, gw):
+    # Sort by elo   
+    team_df = team_df[team_df['gameweek'] == gw].sort_values(by='team_elo', ascending=False)
+
+    print("Elo Rankings:")
+
+    for team in team_df['team_name']:
+        elo = team_df.loc[team_df['team_name'] == team, 'team_elo'].values[0]
+        print(f"{team}: {elo}")

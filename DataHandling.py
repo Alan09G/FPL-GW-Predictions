@@ -201,6 +201,24 @@ def get_rolling_attributes():
 
     return gw_features[rolling_feature_cols]
 
+# GET MATCH DATA
+
+def get_match_dataset():
+    match_df = []
+
+    for gw in range(1, current_gw + 1):
+        match_info = f"https://raw.githubusercontent.com/olbauday/FPL-Core-Insights/refs/heads/main/data/2026-2027/By%20Tournament/Premier%20League/GW{gw}/matches.csv"
+        team_info = f"https://raw.githubusercontent.com/olbauday/FPL-Core-Insights/refs/heads/main/data/2026-2027/By%20Tournament/Premier%20League/GW{gw}/teams.csv"
+        gw_match_df = pd.read_csv(match_info)
+        gw_team_df = pd.read_csv(team_info)[['code', 'name']]
+
+        # add team names   
+        gw_match_df['home_team_name'] = gw_match_df['home_team'].map(gw_team_df.set_index('code')['name'])
+        gw_match_df['away_team_name'] = gw_match_df['away_team'].map(gw_team_df.set_index('code')['name'])
+        match_df.append(gw_match_df)
+
+    return pd.concat(match_df, ignore_index=True)
+
 # TEAM DATA
 
 def get_team_dataset(match_df: pd.DataFrame) -> pd.DataFrame:
@@ -225,116 +243,14 @@ def get_team_dataset(match_df: pd.DataFrame) -> pd.DataFrame:
     }, inplace=True)
 
     team_df = pd.concat([home_df, away_df], ignore_index=True)
+
+    #fill in missing elo values  
+    team_df['team_elo'] = team_df['team_elo'].fillna(0)
     
     #Account for double gameweeks   
     team_df = team_df.groupby(['team_name', 'team_elo', 'gameweek'], as_index=False).mean()
 
     return team_df
-
-# GET MATCH DATA
-
-def get_match_dataset():
-    match_df = []
-
-    for gw in range(1, current_gw + 1):
-        match_info = f"https://raw.githubusercontent.com/olbauday/FPL-Core-Insights/refs/heads/main/data/2026-2027/By%20Tournament/Premier%20League/GW{gw}/matches.csv"
-        team_info = f"https://raw.githubusercontent.com/olbauday/FPL-Core-Insights/refs/heads/main/data/2026-2027/By%20Tournament/Premier%20League/GW{gw}/teams.csv"
-        gw_match_df = pd.read_csv(match_info)
-        gw_team_df = pd.read_csv(team_info)[['code', 'name']]
-
-        # add team names   
-        gw_match_df['home_team_name'] = gw_match_df['home_team'].map(gw_team_df.set_index('code')['name'])
-        gw_match_df['away_team_name'] = gw_match_df['away_team'].map(gw_team_df.set_index('code')['name'])
-        match_df.append(gw_match_df)
-
-    return pd.concat(match_df, ignore_index=True)
-
-# PREDICTION MODELS
-
-def linear_regression(data):
-    data = data[data['gw'] > 1]
-    train_df = data[data['gw'] <= 30]
-    test_df = data[data['gw'] > 30]
-
-    scaler = StandardScaler()
-
-    X_train = train_df.drop(columns=['gw', 'event_points', 'target_next_points'])
-    y_train = train_df['target_next_points']
-
-    X_test = test_df.drop(columns=['gw', 'event_points', 'target_next_points'])
-    y_test = test_df['target_next_points']
-
-    X_train_scaled = scaler.fit_transform(X_train)
-    X_test_scaled = scaler.fit_transform(X_test)
-
-    lm = LinearRegression()
-    lm.fit(X_train_scaled, y_train)
-
-    predictions = lm.predict(X_test_scaled)
-    print("MAE:", metrics.mean_absolute_error(y_test, predictions))
-    print('MSE:', metrics.mean_squared_error(y_test, predictions))
-    print('RMSE:', np.sqrt(metrics.mean_squared_error(y_test, predictions)))
-
-    print('R2 Score: ', r2_score(y_test, predictions))
-
-def decision_tree(data):
-    data = data[data['gw'] > 1]
-    train_df = data[data['gw'] <= 30]
-    test_df = data[data['gw'] > 30]
-
-    X_train = train_df.drop(columns=['gw', 'event_points', 'target_next_points'])
-    y_train = train_df['target_next_points']
-
-    X_test = test_df.drop(columns=['gw', 'event_points', 'target_next_points'])
-    y_test = test_df['target_next_points']
-
-    clf_gini = DecisionTreeRegressor(criterion='squared_error', max_depth=5, random_state=0)
-    clf_gini.fit(X_train, y_train)
-    y_pred = clf_gini.predict(X_test)
-
-    print('MAE:', metrics.mean_absolute_error(y_test, y_pred))
-    print('RMSE:', np.sqrt(metrics.mean_squared_error(y_test, y_pred)))
-    print('R2 Score: ', r2_score(y_test, y_pred))
-
-def random_forest(data):
-    data = data[data['gw'] > 1]
-    train_df = data[data['gw'] <= 30]
-    test_df = data[data['gw'] > 30]
-
-    X_train = train_df.drop(columns=['gw', 'event_points', 'target_next_points'])
-    y_train = train_df['target_next_points']
-
-    X_test = test_df.drop(columns=['gw', 'event_points', 'target_next_points'])
-    y_test = test_df['target_next_points']
-
-    rfc = RandomForestRegressor(n_estimators=500, max_depth=4, random_state=0, n_jobs=-1)
-    rfc.fit(X_train, y_train)
-
-    rfc_pred = rfc.predict(X_test)
-    print('MAE:', metrics.mean_absolute_error(y_test, rfc_pred))
-    print('MSE:', metrics.mean_squared_error(y_test, rfc_pred))
-    print('RMSE:', np.sqrt(metrics.mean_squared_error(y_test, rfc_pred)))
-    print('R2 Score: ', r2_score(y_test, rfc_pred))
-
-def xgboost(data):
-    data = data[data['gw'] > 1]
-    train_df = data[data['gw'] <= 30]
-    test_df = data[data['gw'] > 30]
-
-    X_train = train_df.drop(columns=['gw', 'event_points', 'target_next_points'])
-    y_train = train_df['target_next_points']
-
-    X_test = test_df.drop(columns=['gw', 'event_points', 'target_next_points'])
-    y_test = test_df['target_next_points']
-
-    model = xgb.XGBRegressor(n_estimators=1000, max_depth=6, learning_rate=0.01, random_state=0)
-    model.fit(X_train, y_train)
-
-    predictions = model.predict(X_test)
-    print('MAE:', metrics.mean_absolute_error(y_test, predictions))
-    print('MSE:', metrics.mean_squared_error(y_test, predictions))
-    print('RMSE:', np.sqrt(metrics.mean_squared_error(y_test, predictions)))
-    print('R2 Score: ', r2_score(y_test, predictions))
 
 
 

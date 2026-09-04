@@ -1,5 +1,6 @@
 import DataHandling as dh
 import CreateVisualData as create
+import PredictionModels as model
 
 #GET PLAYER DATASET
  
@@ -39,32 +40,36 @@ forward_df = player_df.loc[player_df['position'] == 'Forward', dh.attributes_out
 #create.expected_goals_assists_plot(midfield_df)
 #create.expected_goals_assists_plot(defenders_df)
 
-#GET MATCH AND TEAM DATASET
+#GET MATCH DATASET
 
 match_df = dh.get_match_dataset()
+print(match_df['home_team'].unique())
+
+#GET TEAM DATASET
 match_df = match_df[dh.attributes_teams]
 team_df = dh.get_team_dataset(match_df)
-create.xg_xa_team_plot(team_df)
-    
+
+print(team_df['team_name'].unique())
+create.show_elo_rankings(team_df, dh.current_gw)
 
 # TESTING PREDICTION MODELS
 """print('Keeper Predictions changing: \n')
-print('Random Forest: \n', dh.random_forest(keepers_df))
-print('XGBoost: \n', dh.xgboost(keepers_df))
+print('Random Forest: \n', model.random_forest(keepers_df))
+print('XGBoost: \n', model.xgboost(keepers_df))
 
 print('============================================')
 
 print('Defender Predictions: \n')
-print("Random Forest: \n", dh.random_forest(defenders_df))
-print('XGBoost: \n', dh.xgboost(defenders_df))
+print("Random Forest: \n", model.random_forest(defenders_df))
+print('XGBoost: \n', model.xgboost(defenders_df))
 
 print('=============================================')
 print('Mid Field Predictions: \n')
-print('Random Forest: \n', dh.random_forest(midfield_df))
-print('XGBoost: \n', dh.xgboost(midfield_df))
+print('Random Forest: \n', model.random_forest(midfield_df))
+print('XGBoost: \n', model.xgboost(midfield_df))
 
 print('=============================================')
 print('Attacker Predictions: \n')
-print('Random Forest: \n', dh.random_forest(forward_df))
-print('XGBoost: \n', dh.xgboost(forward_df))
+print('Random Forest: \n', model.random_forest(forward_df))
+print('XGBoost: \n', model.xgboost(forward_df))
 """
