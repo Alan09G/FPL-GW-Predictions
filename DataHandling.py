@@ -245,7 +245,10 @@ def get_team_dataset(match_df: pd.DataFrame) -> pd.DataFrame:
     team_df = pd.concat([home_df, away_df], ignore_index=True)
 
     #fill in missing elo values  
-    team_df['team_elo'] = team_df['team_elo'].fillna(0)
+    team_df['team_elo'] = team_df['team_elo'].fillna(
+        team_df[team_df['team_elo'] > 0].groupby('team_name')['team_elo'].transform('mean') #fill na with mean elo for that team
+    )
+    team_df['team_elo'] = team_df['team_elo'].fillna(0) #fill any remaining na values with 0
     
     #Account for double gameweeks   
     team_df = team_df.groupby(['team_name', 'team_elo', 'gameweek'], as_index=False).mean()

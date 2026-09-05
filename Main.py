@@ -43,14 +43,13 @@ forward_df = player_df.loc[player_df['position'] == 'Forward', dh.attributes_out
 #GET MATCH DATASET
 
 match_df = dh.get_match_dataset()
-print(match_df['home_team'].unique())
 
 #GET TEAM DATASET
 match_df = match_df[dh.attributes_teams]
 team_df = dh.get_team_dataset(match_df)
 
-print(team_df['team_name'].unique())
-create.show_elo_rankings(team_df, dh.current_gw)
+#create.show_elo_rankings(team_df, dh.current_gw)
+create.stats_per_gw(team_df, dh.current_gw)
 
 # TESTING PREDICTION MODELS
 """print('Keeper Predictions changing: \n')
